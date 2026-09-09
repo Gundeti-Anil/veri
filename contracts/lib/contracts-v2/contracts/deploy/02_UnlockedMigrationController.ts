@@ -1,0 +1,42 @@
+import { artifacts, execute } from "@rocketh";
+import { DEPLOYMENT_ROLES } from "../script/deploy-constants.js";
+
+export default execute(
+  async ({ deploy, execute: write, get, getV1, namedAccounts: { deployer } }) => {
+    const nameWrapper =
+      await getV1<(typeof artifacts.NameWrapper)["abi"]>("NameWrapper");
+
+    const graveyard = get<(typeof artifacts.Graveyard)["abi"]>("Graveyard");
+
+    const ethRegistry =
+      get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
+
+    const contractNamer =
+      get<(typeof artifacts.IContractNamer)["abi"]>("ContractNamer");
+
+    const migrationController = await deploy("UnlockedMigrationController", {
+      account: deployer,
+      artifact: artifacts.UnlockedMigrationController,
+      args: [
+        nameWrapper.address,
+        graveyard.address,
+        ethRegistry.address,
+        contractNamer.address,
+      ],
+    });
+
+    // see: UnlockedMigrationController.t.sol
+    await write(ethRegistry, {
+      account: deployer,
+      functionName: "grantRootRoles",
+      args: [
+        DEPLOYMENT_ROLES.MIGRATION_CONTROLLER_ROOT,
+        migrationController.address,
+      ],
+    });
+  },
+  {
+    tags: ["UnlockedMigrationController", "migration:phase1:deploy-v2", "v2"],
+    dependencies: ["NameWrapper", "Graveyard", "ETHRegistry", "ContractNamer"],
+  },
+);

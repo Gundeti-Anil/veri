@@ -1,0 +1,41 @@
+# Compiler files
+cache/
+.solgrid_cache/
+out/
+
+# Ignores development broadcast logs
+!/broadcast
+/broadcast/*/31337/
+/broadcast/**/dry-run/
+
+# Dotenv file
+.env
+
+node_modules/
+cache_hardhat/
+edr-fork-cache/
+artifacts/
+typechain-types/
+
+# Coverage
+coverage/
+lcov.info
+
+generated/
+
+# Deployment records: track real deploys (live namespaces + dated archives) by
+# default; ignore only the local rehearsal/runtime namespaces so editors do not
+# dim the committed sets and throwaway runs stay out of the repo.
+deployments/*-fork/
+deployments/*-clean-*/
+deployments/v1/*
+!deployments/v1/sepolia/
+
+# pre-migration
+preMigration.log
+preMigration-checkpoint.json
+preMigration-errors.log
+csv-data/
+
+# Dev scratch (analysis writeups, local rehearsal logs)
+.dev/
