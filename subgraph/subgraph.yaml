@@ -1,0 +1,76 @@
+specVersion: 0.0.5
+schema:
+  file: ./schema.graphql
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BEFORE DEPLOYING:
+#   1. Replace VERI_REGISTRAR_ADDRESS with the address from Deploy.s.sol output.
+#   2. Replace USER_REGISTRY_ADDRESS  with the address from SetupRegistry.s.sol output.
+#   3. Replace startBlock values with the actual deployment block numbers
+#      (find them on Sepolia Etherscan after deploying).
+#   4. Run: cd subgraph && npm install && npm run codegen && npm run build
+#   5. Authenticate: graph auth <DEPLOY_KEY>
+#   6. Deploy:  npm run deploy
+# ─────────────────────────────────────────────────────────────────────────────
+
+dataSources:
+
+  # ── VeriRegistrar ──────────────────────────────────────────────────────────
+  - kind: ethereum
+    name: VeriRegistrar
+    network: sepolia
+    source:
+      address: "0xAC8AB3B8467E1EcB67F61c6035135606959a2f77"
+      abi: VeriRegistrar
+      startBlock: 11676198
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/mappings.ts
+      entities:
+        - Human
+        - Agent
+        - Capability
+        - CapabilityEvent
+        - Protocol
+        - TokenToLabel
+      abis:
+        - name: VeriRegistrar
+          file: ./abis/VeriRegistrar.json
+      eventHandlers:
+        - event: AgentIssued(indexed bytes32,string,indexed bytes32,indexed address,uint256,uint64)
+          handler: handleAgentIssued
+        - event: CapabilityGranted(indexed bytes32,indexed bytes32,uint256)
+          handler: handleCapabilityGranted
+        - event: CapabilityRevoked(indexed bytes32,indexed bytes32,string)
+          handler: handleCapabilityRevoked
+        - event: AgentRetired(indexed bytes32,indexed bytes32)
+          handler: handleAgentRetired
+
+  # ── ENSv2 UserRegistry (PermissionedRegistry for veri.eth subnames) ────────
+  # Event signatures verified against contracts-v2 deployments/sepolia-official-v1-20260525-r2/
+  # UserRegistryImpl.json (the real deployed ABI) — see CONNECTION.md for details.
+  - kind: ethereum
+    name: UserRegistry
+    network: sepolia
+    source:
+      address: "0x37510f2302B5CdDaf8550c5FBe162D815F761c3F"
+      abi: UserRegistry
+      startBlock: 11676037
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/mappings.ts
+      entities:
+        - Agent
+        - TokenToLabel
+      abis:
+        - name: UserRegistry
+          file: ./abis/UserRegistry.json
+      eventHandlers:
+        - event: TokenRegenerated(indexed uint256,indexed uint256)
+          handler: onTokenRegenerated
+        - event: ExpiryUpdated(indexed uint256,indexed uint64,indexed address)
+          handler: handleExpiryUpdated
