@@ -4,56 +4,51 @@ pragma solidity ^0.8.24;
 /**
  * @notice Minimal interface for the ENSv2 PermissionedResolverImpl.
  *
- * [VERIFY] every signature against ensdomains/contracts-v2 before deploying.
- *         Specifically:
- *           - Does setText use (bytes32 node, ...) or (uint256 tokenId, ...)?
- *           - Does grantRoles use (uint256 tokenId, address, uint96) or different params?
- *           - What are the exact resolver-side role constants for text record writes?
- *         Read: docs.ens.domains/ensv2/permissioned-resolver
- *               docs.ens.domains/ensv2/enhanced-access-control
+ * Matches ensdomains/contracts-v2/contracts/src/resolver/PermissionedResolver.sol.
+ *
+ * Important: the resolver's generic `grantRoles`/`revokeRoles` (from IEnhancedAccessControl) are
+ * DISABLED — they always revert with `EACCannotGrantRoles`/`EACCannotRevokeRoles`. Per-name,
+ * per-record-key role changes go through the `authorize*Roles` functions below instead, which
+ * derive the EAC resource internally as `keccak256(namehash(toName), part)` — never a token ID.
  */
 interface IPermissionedResolver {
 
     /**
-     * @notice Write a text record for a name.
+     * @notice Write a text record for `node` (the ENS namehash of the full name, e.g.
+     *         `namehash("scanner.veri.eth")`) — NOT a token ID.
      *
-     * [VERIFY] whether the first param is bytes32 node (ENSv1 namehash style)
-     *         or uint256 tokenId (ENSv2 token style).
-     *         Current assumption: uint256 tokenId — update if wrong.
-     *
-     * Requirements: Caller must hold the text-write role for this tokenId
-     *               (granted via grantRoles).
+     * Requirements: caller must hold `ROLE_SET_TEXT` scoped to `resource(node, partHash(key))`
+     *               (granted via `authorizeTextRoles`).
      */
     function setText(
-        uint256        tokenId,
+        bytes32        node,
         string calldata key,
         string calldata value
     ) external;
 
     /**
-     * @notice Grant resolver-level roles for a specific name to a grantee.
-     *
-     * These are the per-capability roles that Veri maps to — e.g.:
-     *   ROLE_SET_TEXT_AGENT_CONTEXT   → grantee can write "agent-context"
-     *   ROLE_SET_TEXT_AGENT_ENDPOINT  → grantee can write "agent-endpoint[*]"
-     *   ROLE_SET_SUBREGISTRY          → grantee can set a sub-registry
-     *
-     * [VERIFY] exact role constants from RegistryRolesLib / resolver docs.
-     *
-     * Requirements: Caller must hold the _ADMIN variant of each role for this tokenId.
+     * @notice Authorize (or revoke) `setText(key)` permission for `toName` — a DNS-encoded name,
+     *         e.g. `NameCoder.encode("scanner.veri.eth")`.
+     * @param toName  DNS-encoded name.
+     * @param key     The text key to scope the role to.
+     * @param account The account to authorize.
+     * @param grant   true to grant, false to revoke.
      */
-    function grantRoles(
-        uint256 tokenId,
-        address grantee,
-        uint96  roles
-    ) external;
+    function authorizeTextRoles(
+        bytes  calldata toName,
+        string calldata key,
+        address         account,
+        bool            grant
+    ) external returns (bool);
 
     /**
-     * @notice Revoke resolver-level roles for a specific name from a grantee.
+     * @notice Authorize (or revoke) name-wide roles (e.g. `ROLE_SET_SUBREGISTRY`-equivalent
+     *         resolver roles) for `toName` as a whole, not scoped to one record key.
      */
-    function revokeRoles(
-        uint256 tokenId,
-        address grantee,
-        uint96  roles
-    ) external;
+    function authorizeNameRoles(
+        bytes  calldata toName,
+        uint256         roleBitmap,
+        address         account,
+        bool            grant
+    ) external returns (bool);
 }

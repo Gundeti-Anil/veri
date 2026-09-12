@@ -13,75 +13,90 @@ import {IPermissionedResolver}  from "../src/interfaces/IPermissionedResolver.so
 contract MockRegistry is IPermissionedRegistry {
     uint256 private _nextTokenId = 1;
 
-    mapping(uint256 => NameState) private _states;   // labelHash → state
-    mapping(uint256 => address)   private _resolvers; // tokenId   → resolver
+    mapping(uint256 => State)   private _states;    // labelHash → state
+    mapping(uint256 => address) private _resolvers; // labelHash → resolver
 
     function register(
         string calldata label,
         address owner,
         address,          // subregistry (ignored in mock)
         address resolver,
-        uint96,           // roleBitmap (ignored in mock)
+        uint256,           // roleBitmap (ignored in mock)
         uint64 expiry
     ) external override returns (uint256 tokenId) {
         tokenId = _nextTokenId++;
         uint256 labelHash = uint256(keccak256(bytes(label)));
-        _states[labelHash] = NameState({
-            status:  NameStatus.REGISTERED,
-            tokenId: tokenId,
-            expiry:  expiry,
-            owner:   owner
+        _states[labelHash] = State({
+            status:      Status.REGISTERED,
+            expiry:      expiry,
+            latestOwner: owner,
+            tokenId:     tokenId,
+            resource:    labelHash
         });
-        _resolvers[tokenId] = resolver;
+        _resolvers[labelHash] = resolver;
     }
 
     function renew(uint256, uint64) external override {}
 
-    function getState(uint256 labelHash) external view override returns (NameState memory) {
+    function getState(uint256 labelHash) external view override returns (State memory) {
         return _states[labelHash];
     }
 
-    function getResolver(uint256 tokenId) external view override returns (address) {
-        return _resolvers[tokenId];
+    function getResolver(string calldata label) external view override returns (address) {
+        return _resolvers[uint256(keccak256(bytes(label)))];
     }
 
-    function grantRootRoles(uint96, address) external override {}
-    function revokeRootRoles(uint96, address) external override {}
+    function grantRootRoles(uint256, address) external override returns (bool) { return true; }
+    function revokeRootRoles(uint256, address) external override returns (bool) { return true; }
+    function grantRoles(uint256, uint256, address) external override returns (bool) { return true; }
+    function revokeRoles(uint256, uint256, address) external override returns (bool) { return true; }
 
     // Helper: mark a label as taken (for "label not available" tests)
     function setRegistered(string calldata label) external {
         uint256 labelHash = uint256(keccak256(bytes(label)));
-        _states[labelHash].status = NameStatus.REGISTERED;
+        _states[labelHash].status = Status.REGISTERED;
         _states[labelHash].tokenId = _nextTokenId++;
     }
 }
 
 contract MockResolver is IPermissionedResolver {
     // Track calls for assertions
-    struct TextSet { uint256 tokenId; string key; string value; }
-    struct RoleOp  { uint256 tokenId; address grantee; uint96 roles; }
+    struct TextSet { bytes32 node; string key; string value; }
+    struct RoleOp  { bytes toName; string key; address account; bool grant; }
 
     TextSet[] public textSets;
-    RoleOp[]  public grants;
-    RoleOp[]  public revokes;
+    RoleOp[]  public textRoleOps;
 
-    function setText(uint256 tokenId, string calldata key, string calldata value)
+    function setText(bytes32 node, string calldata key, string calldata value)
         external override
     {
-        textSets.push(TextSet(tokenId, key, value));
+        textSets.push(TextSet(node, key, value));
     }
 
-    function grantRoles(uint256 tokenId, address grantee, uint96 roles) external override {
-        grants.push(RoleOp(tokenId, grantee, roles));
+    function authorizeTextRoles(bytes calldata toName, string calldata key, address account, bool grant)
+        external override returns (bool)
+    {
+        textRoleOps.push(RoleOp(toName, key, account, grant));
+        return true;
     }
 
-    function revokeRoles(uint256 tokenId, address grantee, uint96 roles) external override {
-        revokes.push(RoleOp(tokenId, grantee, roles));
+    function authorizeNameRoles(bytes calldata, uint256, address, bool)
+        external pure override returns (bool)
+    {
+        return true;
     }
 
-    function grantCount()  external view returns (uint256) { return grants.length; }
-    function revokeCount() external view returns (uint256) { return revokes.length; }
     function textCount()   external view returns (uint256) { return textSets.length; }
+    function grantCount()  external view returns (uint256) {
+        uint256 n;
+        for (uint256 i; i < textRoleOps.length; i++) if (textRoleOps[i].grant) n++;
+        return n;
+    }
+    function revokeCount() external view returns (uint256) {
+        uint256 n;
+        for (uint256 i; i < textRoleOps.length; i++) if (!textRoleOps[i].grant) n++;
+        return n;
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -461,9 +476,14 @@ contract VeriRegistrarTest is Test {
     }
 
     function test_setCapabilityRole_updatesRole() public {
-        uint96 newRole = 1 << 10;
-        registrar.setCapabilityRole(registrar.CAP_TRANSACT(), newRole);
-        assertEq(registrar.capabilityRoles(registrar.CAP_TRANSACT()), newRole);
+        uint256 newRole = 1 << 20;
+        registrar.setCapabilityConfig(
+            registrar.CAP_TRANSACT(), VeriRegistrar.CapabilityTarget.REGISTRY, newRole, ""
+        );
+        (VeriRegistrar.CapabilityTarget target, uint256 roleBitmap, ) =
+            registrar.capabilityConfig(registrar.CAP_TRANSACT());
+        assertEq(uint8(target), uint8(VeriRegistrar.CapabilityTarget.REGISTRY));
+        assertEq(roleBitmap, newRole);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

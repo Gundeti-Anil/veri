@@ -10,13 +10,16 @@ pragma solidity ^0.8.24;
  */
 interface IPermissionedRegistry {
 
-    enum NameStatus { AVAILABLE, REGISTERED, EXPIRED }
+    // Matches ensdomains/contracts-v2 IPermissionedRegistry.Status exactly (field order/enum order
+    // matter for ABI decoding of getState()).
+    enum Status { AVAILABLE, RESERVED, REGISTERED }
 
-    struct NameState {
-        NameStatus status;
-        uint256    tokenId;   // mutable — changes on role grants/revokes and re-registration
-        uint64     expiry;    // absolute Unix timestamp
-        address    owner;
+    struct State {
+        Status  status;
+        uint64  expiry;      // absolute Unix timestamp
+        address latestOwner; // owner even if the token was later burned
+        uint256 tokenId;     // mutable — changes on role grants/revokes and re-registration
+        uint256 resource;    // EAC resource ID for this name
     }
 
     // -------------------------------------------------------------------------
@@ -43,7 +46,7 @@ interface IPermissionedRegistry {
         address         owner,
         address         subregistry,
         address         resolver,
-        uint96          roleBitmap,
+        uint256         roleBitmap,
         uint64          expiry
     ) external returns (uint256 tokenId);
 
@@ -61,12 +64,25 @@ interface IPermissionedRegistry {
      * @dev    Caller must hold the _ADMIN variant of each role being granted.
      *         e.g. to grant ROLE_REGISTRAR, caller needs ROLE_REGISTRAR_ADMIN.
      */
-    function grantRootRoles(uint96 roles, address grantee) external;
+    function grantRootRoles(uint256 roles, address grantee) external returns (bool);
 
     /**
      * @notice Revoke roles on the root resource.
      */
-    function revokeRootRoles(uint96 roles, address grantee) external;
+    function revokeRootRoles(uint256 roles, address grantee) external returns (bool);
+
+    /**
+     * @notice Grant roles scoped to a specific name (unlike the resolver's equivalent, this is
+     *         NOT disabled on the registry).
+     * @param anyId The labelhash, token ID, or resource of the name to scope the grant to.
+     * @dev    Caller must hold the _ADMIN variant of each role being granted, scoped to `anyId`.
+     */
+    function grantRoles(uint256 anyId, uint256 roleBitmap, address account) external returns (bool);
+
+    /**
+     * @notice Revoke roles scoped to a specific name.
+     */
+    function revokeRoles(uint256 anyId, uint256 roleBitmap, address account) external returns (bool);
 
     // -------------------------------------------------------------------------
     // Read
@@ -74,13 +90,15 @@ interface IPermissionedRegistry {
 
     /**
      * @notice Current state of a label.
-     * @param labelHash  uint256(keccak256(bytes(label)))
+     * @param anyId  The labelhash, token ID, or resource — the real registry accepts any of these
+     *               interchangeably and resolves internally.
      */
-    function getState(uint256 labelHash) external view returns (NameState memory);
+    function getState(uint256 anyId) external view returns (State memory);
 
     /**
-     * @notice Resolver configured for a token ID.
-     * @dev    Always look up at call-time — token IDs are mutable.
+     * @notice Resolver configured for a label.
+     * @dev    Real signature takes the label string directly (inherited from IRegistry), NOT a
+     *         token ID — always look up at call-time since token IDs are mutable anyway.
      */
-    function getResolver(uint256 tokenId) external view returns (address);
+    function getResolver(string calldata label) external view returns (address);
 }

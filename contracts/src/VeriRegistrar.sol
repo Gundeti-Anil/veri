@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {ECDSA}  from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {IPermissionedRegistry} from "./interfaces/IPermissionedRegistry.sol";
 import {IPermissionedResolver}  from "./interfaces/IPermissionedResolver.sol";
 
@@ -44,22 +45,32 @@ contract VeriRegistrar is EIP712, Ownable {
     // ENSv2 Registry role constants  [VERIFY] against RegistryRolesLib
     // =========================================================================
 
-    uint96 public constant ROLE_SET_SUBREGISTRY       = 1 << 0;
-    uint96 public constant ROLE_SET_SUBREGISTRY_ADMIN = 1 << 1;
-    uint96 public constant ROLE_SET_RESOLVER          = 1 << 2;
-    uint96 public constant ROLE_SET_RESOLVER_ADMIN    = 1 << 3;
-    uint96 public constant ROLE_SET_EXPIRY            = 1 << 4;
-    uint96 public constant ROLE_CAN_TRANSFER_ADMIN    = 1 << 5;
-    uint96 public constant ROLE_REGISTRAR             = 1 << 6;
-    uint96 public constant ROLE_RENEW                 = 1 << 16;
+    // Nybble-packed per RegistryRolesLib: role N lives at bit (4*N), admin counterpart at bit (4*N + 128).
+    uint256 public constant ROLE_SET_SUBREGISTRY       = 1 << 20;
+    uint256 public constant ROLE_SET_SUBREGISTRY_ADMIN = 1 << 148;
+    uint256 public constant ROLE_SET_RESOLVER          = 1 << 24;
+    uint256 public constant ROLE_SET_RESOLVER_ADMIN    = 1 << 152;
+    uint256 public constant ROLE_CAN_TRANSFER_ADMIN    = 1 << 156;
+    uint256 public constant ROLE_REGISTRAR             = 1 << 0;
+    uint256 public constant ROLE_RENEW                 = 1 << 16;
 
     /// @notice Registry-level roles granted to the agent address on name registration.
-    uint96 public constant AGENT_ROLE_BITMAP =
+    uint256 public constant AGENT_ROLE_BITMAP =
         ROLE_SET_SUBREGISTRY       |
         ROLE_SET_SUBREGISTRY_ADMIN |
         ROLE_SET_RESOLVER          |
         ROLE_SET_RESOLVER_ADMIN    |
         ROLE_CAN_TRANSFER_ADMIN;
+
+    // =========================================================================
+    // Resolver role constants — from PermissionedResolverLib (nybble-packed, same scheme as
+    // RegistryRolesLib above but on the resolver contract, scoped per-name via `resource()`).
+    // =========================================================================
+
+    uint256 public constant ROLE_SET_TEXT = 1 << 4;
+
+    /// @notice The parent name every agent is registered under.
+    string public constant PARENT_NAME = "veri.eth";
 
     // =========================================================================
     // Capability IDs  (keccak256 of the capability name — these are the novel part)
@@ -122,9 +133,19 @@ contract VeriRegistrar is EIP712, Ownable {
     /// @dev labelHash → capabilityId → currently granted.
     mapping(bytes32 => mapping(bytes32 => bool)) public capabilities;
 
-    /// @dev capabilityId → resolver role bitmap to grant/revoke.
-    ///      Configurable via setCapabilityRole() after verifying actual resolver constants.
-    mapping(bytes32 => uint96) public capabilityRoles;
+    /// @notice Where a capability's role lives: nowhere (off-chain only), the registry
+    ///         (name-scoped EAC role), or a specific resolver text record.
+    enum CapabilityTarget { NONE, REGISTRY, RESOLVER_TEXT }
+
+    struct CapabilityConfig {
+        CapabilityTarget target;
+        uint256          roleBitmap; // ignored when target == NONE
+        string           textKey;    // only used when target == RESOLVER_TEXT
+    }
+
+    /// @dev capabilityId → where/what role to grant or revoke.
+    ///      Configurable via setCapabilityConfig() after verifying actual resolver constants.
+    mapping(bytes32 => CapabilityConfig) public capabilityConfig;
 
     // =========================================================================
     // Events  — these drive the entire subgraph; do not rename without updating mappings.ts
@@ -142,7 +163,7 @@ contract VeriRegistrar is EIP712, Ownable {
     event CapabilityGranted(
         bytes32 indexed labelHash,
         bytes32 indexed capabilityId,
-        uint96          roleBitmap
+        uint256         roleBitmap
     );
 
     event CapabilityRevoked(
@@ -158,7 +179,7 @@ contract VeriRegistrar is EIP712, Ownable {
 
     event AttestorUpdated(address indexed previous, address indexed next);
     event DefaultResolverUpdated(address previous, address next);
-    event CapabilityRoleSet(bytes32 indexed capabilityId, uint96 roleBitmap);
+    event CapabilityRoleSet(bytes32 indexed capabilityId, uint256 roleBitmap);
 
     // =========================================================================
     // Constructor
@@ -183,13 +204,31 @@ contract VeriRegistrar is EIP712, Ownable {
         attestor        = _attestor;
         defaultResolver = _defaultResolver;
 
-        // Default capability → resolver role bitmap.
-        // [VERIFY] these values against PermissionedResolverImpl role constants.
-        // Call setCapabilityRole() after confirming the real values.
-        capabilityRoles[CAP_SELF_DESCRIBE]   = 1 << 0;  // placeholder: ROLE_SET_TEXT_CONTEXT
-        capabilityRoles[CAP_ENDPOINT_UPDATE] = 1 << 1;  // placeholder: ROLE_SET_TEXT_ENDPOINT
-        capabilityRoles[CAP_SUBAGENT_ISSUE]  = ROLE_SET_SUBREGISTRY;
-        capabilityRoles[CAP_TRANSACT]        = 0;       // off-chain only — no resolver role
+        // Default capability → target + role bitmap + (for resolver text roles) record key.
+        // CAP_SELF_DESCRIBE / CAP_ENDPOINT_UPDATE are per-text-key resolver roles, scoped via
+        // authorizeTextRoles() — see PermissionedResolver.sol. CAP_SUBAGENT_ISSUE is a
+        // registry-level role, granted directly via REGISTRY.grantRoles(). CAP_TRANSACT is
+        // off-chain only.
+        capabilityConfig[CAP_SELF_DESCRIBE] = CapabilityConfig({
+            target:     CapabilityTarget.RESOLVER_TEXT,
+            roleBitmap: ROLE_SET_TEXT,
+            textKey:    "agent-context"
+        });
+        capabilityConfig[CAP_ENDPOINT_UPDATE] = CapabilityConfig({
+            target:     CapabilityTarget.RESOLVER_TEXT,
+            roleBitmap: ROLE_SET_TEXT,
+            textKey:    "agent-endpoint[mcp]"
+        });
+        capabilityConfig[CAP_SUBAGENT_ISSUE] = CapabilityConfig({
+            target:     CapabilityTarget.REGISTRY,
+            roleBitmap: ROLE_SET_SUBREGISTRY,
+            textKey:    ""
+        });
+        capabilityConfig[CAP_TRANSACT] = CapabilityConfig({
+            target:     CapabilityTarget.NONE,
+            roleBitmap: 0,
+            textKey:    ""
+        });
     }
 
     // =========================================================================
@@ -232,10 +271,10 @@ contract VeriRegistrar is EIP712, Ownable {
         // ── 3. Label must be available ─────────────────────────────────────
         bytes32 labelHash = keccak256(bytes(label));
         {
-            IPermissionedRegistry.NameState memory st =
+            IPermissionedRegistry.State memory st =
                 REGISTRY.getState(uint256(labelHash));
             require(
-                st.status == IPermissionedRegistry.NameStatus.AVAILABLE,
+                st.status == IPermissionedRegistry.Status.AVAILABLE,
                 "VR: label not available"
             );
         }
@@ -260,15 +299,15 @@ contract VeriRegistrar is EIP712, Ownable {
 
         // ── 6. Write ENSIP-26 stub records ────────────────────────────────
         //    Agent updates these after SELF_DESCRIBE / ENDPOINT_UPDATE are granted.
-        _setTextRecord(tokenId, "agent-context",     "");
-        _setTextRecord(tokenId, "agent-endpoint[mcp]", "");
+        _setTextRecord(label, "agent-context",     "");
+        _setTextRecord(label, "agent-endpoint[mcp]", "");
 
         // ── 7. Emit ────────────────────────────────────────────────────────
         emit AgentIssued(labelHash, label, humanId, _agentAddress, tokenId, expiry);
 
         // ── 8. Grant initial capabilities ──────────────────────────────────
         for (uint256 i; i < capabilityIds.length; ) {
-            _grantCapability(labelHash, tokenId, capabilityIds[i], _agentAddress);
+            _grantCapability(label, labelHash, tokenId, capabilityIds[i], _agentAddress);
             unchecked { ++i; }
         }
     }
@@ -289,7 +328,7 @@ contract VeriRegistrar is EIP712, Ownable {
 
         // Resolve tokenId fresh — it changes on every role grant in ENSv2
         uint256 tokenId = REGISTRY.getState(uint256(labelHash)).tokenId;
-        _grantCapability(labelHash, tokenId, capabilityId, agentAddr[labelHash]);
+        _grantCapability(label, labelHash, tokenId, capabilityId, agentAddr[labelHash]);
     }
 
     /**
@@ -309,14 +348,16 @@ contract VeriRegistrar is EIP712, Ownable {
 
         capabilities[labelHash][capabilityId] = false;
 
-        uint96 roleBitmap = capabilityRoles[capabilityId];
-        if (roleBitmap != 0) {
-            // Resolve tokenId fresh
-            uint256 tokenId  = REGISTRY.getState(uint256(labelHash)).tokenId;
-            address resolver = REGISTRY.getResolver(tokenId);
+        CapabilityConfig memory cfg = capabilityConfig[capabilityId];
+        if (cfg.target == CapabilityTarget.REGISTRY) {
+            // Resolve tokenId fresh — it changes on every role grant in ENSv2
+            uint256 tokenId = REGISTRY.getState(uint256(labelHash)).tokenId;
+            REGISTRY.revokeRoles(tokenId, cfg.roleBitmap, agentAddr[labelHash]);
+        } else if (cfg.target == CapabilityTarget.RESOLVER_TEXT) {
+            address resolver = REGISTRY.getResolver(label);
             if (resolver != address(0)) {
-                IPermissionedResolver(resolver).revokeRoles(
-                    tokenId, agentAddr[labelHash], roleBitmap
+                IPermissionedResolver(resolver).authorizeTextRoles(
+                    NameCoder.encode(_fullName(label)), cfg.textKey, agentAddr[labelHash], false
                 );
             }
         }
@@ -379,12 +420,16 @@ contract VeriRegistrar is EIP712, Ownable {
     }
 
     /**
-     * @notice Update the resolver role bitmap for a capability.
+     * @notice Update the target/role/text-key config for a capability.
      *         Call this after verifying the exact role constants in PermissionedResolverImpl.
-     *         The placeholder values set in the constructor are unverified.
      */
-    function setCapabilityRole(bytes32 capabilityId, uint96 roleBitmap) external onlyOwner {
-        capabilityRoles[capabilityId] = roleBitmap;
+    function setCapabilityConfig(
+        bytes32          capabilityId,
+        CapabilityTarget target,
+        uint256          roleBitmap,
+        string calldata  textKey
+    ) external onlyOwner {
+        capabilityConfig[capabilityId] = CapabilityConfig(target, roleBitmap, textKey);
         emit CapabilityRoleSet(capabilityId, roleBitmap);
     }
 
@@ -393,6 +438,7 @@ contract VeriRegistrar is EIP712, Ownable {
     // =========================================================================
 
     function _grantCapability(
+        string  memory label,
         bytes32 labelHash,
         uint256 tokenId,
         bytes32 capabilityId,
@@ -401,31 +447,40 @@ contract VeriRegistrar is EIP712, Ownable {
         require(!capabilities[labelHash][capabilityId], "VR: already granted");
         capabilities[labelHash][capabilityId] = true;
 
-        uint96 roleBitmap = capabilityRoles[capabilityId];
-        if (roleBitmap != 0) {
-            address resolver = REGISTRY.getResolver(tokenId);
+        CapabilityConfig memory cfg = capabilityConfig[capabilityId];
+        if (cfg.target == CapabilityTarget.REGISTRY) {
+            REGISTRY.grantRoles(tokenId, cfg.roleBitmap, grantee);
+        } else if (cfg.target == CapabilityTarget.RESOLVER_TEXT) {
+            address resolver = REGISTRY.getResolver(label);
             if (resolver != address(0)) {
-                IPermissionedResolver(resolver).grantRoles(tokenId, grantee, roleBitmap);
+                IPermissionedResolver(resolver).authorizeTextRoles(
+                    NameCoder.encode(_fullName(label)), cfg.textKey, grantee, true
+                );
             }
         }
 
-        emit CapabilityGranted(labelHash, capabilityId, roleBitmap);
+        emit CapabilityGranted(labelHash, capabilityId, cfg.roleBitmap);
     }
 
     /**
      * @dev Write a text record on the resolver for a freshly-registered name.
      *      Only called during issueAgent() where tokenId is fresh from register().
-     *      [VERIFY] IPermissionedResolver.setText signature.
      */
     function _setTextRecord(
-        uint256 tokenId,
+        string memory label,
         string memory key,
         string memory value
     ) internal {
-        address resolver = REGISTRY.getResolver(tokenId);
+        address resolver = REGISTRY.getResolver(label);
         if (resolver == address(0)) return;
-        // VeriRegistrar must hold the resolver write role for this tokenId.
+        // VeriRegistrar must hold the resolver write role for this node/key.
         // This is granted by the veri.eth resolver admin in SetupRegistry.s.sol.
-        IPermissionedResolver(resolver).setText(tokenId, key, value);
+        bytes32 node = NameCoder.namehash(NameCoder.encode(_fullName(label)), 0);
+        IPermissionedResolver(resolver).setText(node, key, value);
+    }
+
+    /// @dev Full DNS name for a leaf label, e.g. "scanner" → "scanner.veri.eth".
+    function _fullName(string memory label) internal pure returns (string memory) {
+        return string.concat(label, ".", PARENT_NAME);
     }
 }

@@ -29,9 +29,9 @@ import {VeriRegistrar}   from "../src/VeriRegistrar.sol";
  */
 contract Deploy is Script {
 
-    // VeriRegistrar role constants — must match the values in VeriRegistrar.sol
-    uint96 constant ROLE_REGISTRAR = 1 << 6;
-    uint96 constant ROLE_RENEW     = 1 << 16;
+    // RegistryRolesLib role constants (nybble-packed: ROLE_REGISTRAR = nybble 0, ROLE_RENEW = nybble 4)
+    uint256 constant ROLE_REGISTRAR = 1 << 0;
+    uint256 constant ROLE_RENEW     = 1 << 16;
 
     function run() external {
         uint256 pk              = vm.envUint("PRIVATE_KEY");
@@ -80,7 +80,7 @@ contract Deploy is Script {
     /**
      * @notice Helper: print the capability IDs so you can cross-check them in the subgraph.
      */
-    function printCapabilityIds() external pure {
+    function printCapabilityIds() external view {
         console.log("CAP_SELF_DESCRIBE:  ");
         console.logBytes32(keccak256("SELF_DESCRIBE"));
         console.log("CAP_ENDPOINT_UPDATE:");
@@ -93,5 +93,5 @@ contract Deploy is Script {
 }
 
 interface IGrantable {
-    function grantRootRoles(uint96 roles, address grantee) external;
+    function grantRootRoles(uint256 roles, address grantee) external returns (bool);
 }

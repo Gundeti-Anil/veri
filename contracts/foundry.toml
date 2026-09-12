@@ -12,6 +12,7 @@ via_ir         = true
 remappings = [
   "@ensdomains/contracts-v2/=lib/contracts-v2/contracts/src/",
   "@openzeppelin/contracts/=lib/contracts-v2/contracts/lib/openzeppelin-contracts/contracts/",
+  "@ens/contracts/=lib/contracts-v2/contracts/lib/ens-contracts/contracts/",
 ]
 
 [rpc_endpoints]
