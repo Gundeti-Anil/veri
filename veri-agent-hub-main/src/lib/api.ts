@@ -90,54 +90,6 @@ export const WORLD_APP_ID = (
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sample data (shown when backend is unreachable)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const now = Math.floor(Date.now() / 1000);
-const DAY = 86_400;
-
-function sampleAgent(label: string, caps: CapabilityName[], daysLeft: number): Agent {
-  const expiry = String(now + daysLeft * DAY);
-  return {
-    id: "0x" + label.padEnd(64, "0"),
-    label,
-    name: `${label}.veri.eth`,
-    agentAddress: "0x5f2b" + label.length.toString(16).padStart(60, "0"),
-    currentTokenId: "1",
-    expiry,
-    active: daysLeft > 0,
-    context: `${label} is an AI agent registered on Veri.`,
-    mcpEndpoint: `https://${label}.example.com/mcp`,
-    issuedAt: String(now - 30 * DAY),
-    issuedTx: "0x" + "a".repeat(64),
-    human: { id: "0x" + "b".repeat(64), agentCount: 1, firstSeenAt: String(now - 30 * DAY) },
-    capabilities: caps.map((name) => ({
-      capabilityId: "0x" + name.padEnd(64, "0"),
-      name,
-      roleBitmap: "1",
-      grantedAt: String(now - 29 * DAY),
-      revokedAt: null,
-    })),
-  };
-}
-
-const SAMPLE_AGENTS: Agent[] = [
-  sampleAgent("scanner",   ["SELF_DESCRIBE", "ENDPOINT_UPDATE", "TRANSACT"], 74),
-  sampleAgent("alpha",     ["TRANSACT"],                                      41),
-  sampleAgent("linter",    ["SELF_DESCRIBE", "ENDPOINT_UPDATE"],              12),
-  sampleAgent("indexer",   ["SELF_DESCRIBE"],                                 63),
-  sampleAgent("research",  ["SELF_DESCRIBE", "ENDPOINT_UPDATE", "TRANSACT"], 88),
-  sampleAgent("assistant", ["SELF_DESCRIBE", "ENDPOINT_UPDATE", "SUBAGENT_ISSUE"], 28),
-];
-
-const SAMPLE_FEED: FeedEvent[] = [
-  { id: "1", action: "REVOKED",  reason: "Human withdrew permission", capabilityId: "0x0", timestamp: String(now - 120),     txHash: "0x1", agent: { name: "badbot.veri.eth",      label: "badbot"  } },
-  { id: "2", action: "GRANTED",  reason: null,                         capabilityId: "0x0", timestamp: String(now - 840),     txHash: "0x2", agent: { name: "oracle.veri.eth",      label: "oracle"  } },
-  { id: "3", action: "REVOKED",  reason: "Retired",                    capabilityId: "0x0", timestamp: String(now - 2460),    txHash: "0x3", agent: { name: "ghostwriter.veri.eth", label: "ghostwriter" } },
-  { id: "4", action: "GRANTED",  reason: null,                         capabilityId: "0x0", timestamp: String(now - 5760),    txHash: "0x4", agent: { name: "scanner.veri.eth",     label: "scanner" } },
-];
-
-// ─────────────────────────────────────────────────────────────────────────────
 // HTTP helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -176,14 +128,7 @@ export async function fetchAgents(capability?: string): Promise<Agent[]> {
     ? `/agents/search?capability=${encodeURIComponent(capability)}`
     : "/agents";
   const data = await get<{ agents: Agent[] }>(path, { agents: [] });
-  if (data.agents.length) return data.agents;
-  return capability
-    ? SAMPLE_AGENTS.filter(
-        (a) =>
-          a.capabilities.some((c) => c.name.toLowerCase().includes(capability.toLowerCase())) ||
-          a.label.toLowerCase().includes(capability.toLowerCase()),
-      )
-    : SAMPLE_AGENTS;
+  return data.agents;
 }
 
 export async function fetchAgent(subname: string): Promise<Agent | null> {
@@ -191,12 +136,12 @@ export async function fetchAgent(subname: string): Promise<Agent | null> {
     `/agents/${encodeURIComponent(subname)}`,
     { agent: null },
   );
-  return data.agent ?? SAMPLE_AGENTS.find((a) => a.name === subname) ?? null;
+  return data.agent;
 }
 
 export async function fetchFeed(): Promise<FeedEvent[]> {
   const data = await get<{ events: FeedEvent[] }>("/feed?limit=20", { events: [] });
-  return data.events.length ? data.events : SAMPLE_FEED;
+  return data.events;
 }
 
 export async function fetchHistory(subname: string): Promise<CapabilityEvent[]> {
@@ -204,12 +149,7 @@ export async function fetchHistory(subname: string): Promise<CapabilityEvent[]> 
     `/agents/${encodeURIComponent(subname)}/history`,
     { history: [] },
   );
-  if (data.history.length) return data.history;
-  return [
-    { id: "1", action: "GRANTED", reason: null,        capabilityId: "0x1", timestamp: String(now - 90 * DAY), txHash: "0xa" },
-    { id: "2", action: "GRANTED", reason: null,        capabilityId: "0x2", timestamp: String(now - 89 * DAY), txHash: "0xb" },
-    { id: "3", action: "REVOKED", reason: "Temporary", capabilityId: "0x1", timestamp: String(now -  5 * DAY), txHash: "0xc" },
-  ];
+  return data.history;
 }
 
 // World ID — get RP signature (called before opening IDKit widget)

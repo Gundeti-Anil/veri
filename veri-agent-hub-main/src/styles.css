@@ -65,12 +65,56 @@
   --color-health-good: var(--health-good);
   --color-health-warn: var(--health-warn);
   --color-health-bad: var(--health-bad);
-  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-display: "Roboto", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Roboto Mono", ui-monospace, monospace;
 }
 
-/* Veri runs dark-only. Both blocks carry the same values on purpose. */
-:root,
+/*
+ * Monochrome by design — no brand accent color. Primary/ring/sidebar-primary
+ * are just foreground-on-background (a black button in light mode, a white
+ * button in dark mode), matching a plain black-and-white CTA aesthetic.
+ * health-good/warn/bad stay as muted semantic colors since they carry
+ * functional meaning (agent status), not decoration.
+ */
+:root {
+  --radius: 0.5rem;
+  --background: oklch(0.99 0.002 260);
+  --foreground: oklch(0.2 0.01 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.01 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.01 260);
+  --primary: oklch(0.2 0.01 260);
+  --primary-foreground: oklch(0.98 0.002 260);
+  --secondary: oklch(0.95 0.004 260);
+  --secondary-foreground: oklch(0.2 0.01 260);
+  --muted: oklch(0.95 0.004 260);
+  --muted-foreground: oklch(0.5 0.01 260);
+  --accent: oklch(0.94 0.005 260);
+  --accent-foreground: oklch(0.2 0.01 260);
+  --destructive: oklch(0.58 0.14 25);
+  --destructive-foreground: oklch(0.98 0.005 20);
+  --border: oklch(0.9 0.006 260);
+  --input: oklch(0.9 0.006 260);
+  --ring: oklch(0.2 0.01 260);
+  --health-good: oklch(0.6 0.11 155);
+  --health-warn: oklch(0.7 0.1 85);
+  --health-bad: oklch(0.58 0.14 25);
+  --chart-1: oklch(0.55 0.08 165);
+  --chart-2: oklch(0.55 0.08 220);
+  --chart-3: oklch(0.65 0.09 85);
+  --chart-4: oklch(0.58 0.14 25);
+  --chart-5: oklch(0.5 0.05 280);
+  --sidebar: oklch(0.99 0.002 260);
+  --sidebar-foreground: oklch(0.2 0.01 260);
+  --sidebar-primary: oklch(0.2 0.01 260);
+  --sidebar-primary-foreground: oklch(0.98 0.002 260);
+  --sidebar-accent: oklch(0.95 0.004 260);
+  --sidebar-accent-foreground: oklch(0.2 0.01 260);
+  --sidebar-border: oklch(0.9 0.006 260);
+  --sidebar-ring: oklch(0.2 0.01 260);
+}
+
 .dark {
   --radius: 0.5rem;
   --background: oklch(0.16 0.012 265);
@@ -79,35 +123,35 @@
   --card-foreground: oklch(0.96 0.005 260);
   --popover: oklch(0.2 0.013 265);
   --popover-foreground: oklch(0.96 0.005 260);
-  --primary: oklch(0.84 0.19 145);
-  --primary-foreground: oklch(0.18 0.02 150);
+  --primary: oklch(0.92 0.004 260);
+  --primary-foreground: oklch(0.18 0.012 265);
   --secondary: oklch(0.26 0.015 265);
   --secondary-foreground: oklch(0.94 0.005 260);
   --muted: oklch(0.24 0.014 265);
   --muted-foreground: oklch(0.68 0.015 260);
   --accent: oklch(0.28 0.02 265);
   --accent-foreground: oklch(0.96 0.005 260);
-  --destructive: oklch(0.62 0.22 25);
+  --destructive: oklch(0.6 0.12 25);
   --destructive-foreground: oklch(0.97 0.01 20);
   --border: oklch(0.3 0.015 265);
   --input: oklch(0.3 0.015 265);
-  --ring: oklch(0.84 0.19 145);
-  --health-good: oklch(0.82 0.19 145);
-  --health-warn: oklch(0.83 0.17 85);
-  --health-bad: oklch(0.63 0.22 25);
-  --chart-1: oklch(0.84 0.19 145);
-  --chart-2: oklch(0.7 0.13 200);
-  --chart-3: oklch(0.83 0.17 85);
-  --chart-4: oklch(0.63 0.22 25);
-  --chart-5: oklch(0.7 0.1 265);
+  --ring: oklch(0.92 0.004 260);
+  --health-good: oklch(0.72 0.08 165);
+  --health-warn: oklch(0.75 0.08 85);
+  --health-bad: oklch(0.6 0.12 25);
+  --chart-1: oklch(0.75 0.07 165);
+  --chart-2: oklch(0.68 0.08 220);
+  --chart-3: oklch(0.75 0.08 85);
+  --chart-4: oklch(0.6 0.12 25);
+  --chart-5: oklch(0.65 0.05 280);
   --sidebar: oklch(0.18 0.012 265);
   --sidebar-foreground: oklch(0.96 0.005 260);
-  --sidebar-primary: oklch(0.84 0.19 145);
-  --sidebar-primary-foreground: oklch(0.18 0.02 150);
+  --sidebar-primary: oklch(0.92 0.004 260);
+  --sidebar-primary-foreground: oklch(0.18 0.012 265);
   --sidebar-accent: oklch(0.26 0.015 265);
   --sidebar-accent-foreground: oklch(0.96 0.005 260);
   --sidebar-border: oklch(0.3 0.015 265);
-  --sidebar-ring: oklch(0.84 0.19 145);
+  --sidebar-ring: oklch(0.92 0.004 260);
 }
 
 @layer base {

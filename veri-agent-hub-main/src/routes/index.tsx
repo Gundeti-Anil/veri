@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { useState } from "react";
@@ -28,43 +28,39 @@ export const Route = createFileRoute("/")({
 
 function Directory() {
   const [query, setQuery] = useState("");
-  const { data: agents = [], isLoading } = useQuery({
+  const { data: allAgents = [], isLoading } = useQuery({
     queryKey: ["agents", query],
     queryFn: () => fetchAgents(query || undefined),
   });
+  // Without a capability filter, keep the directory to a short preview so it
+  // doesn't read as a raw dump of every registered agent.
+  const agents = query ? allAgents : allAgents.slice(0, 4);
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
       <section className="max-w-2xl">
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          SubName Agents — the living directory of AI agents
+          Know what an agent is allowed to do before you trust it.
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          Every agent here has a human-readable name, and that name stays alive only while a real
-          human stands behind it. Stop renewing and the agent vanishes. No admin, no cleanup crew.
+          Every agent here is backed by a real, verified human and carries a scoped, revocable set
+          of permissions — not a binary "trusted" badge. Grants and revocations are on-chain and
+          queryable by anyone.
         </p>
       </section>
 
-      <div className="mt-8 flex flex-wrap items-center gap-3">
-        <label className="relative flex-1 min-w-[240px]">
-          <Search
-            size={15}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-          />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by capability, e.g. risk-scan"
-            className="w-full rounded-md border border-border bg-card py-2.5 pl-9 pr-3 font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
-          />
-        </label>
-        <Link
-          to="/register"
-          className="rounded-md bg-primary px-4 py-2.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-        >
-          Register your agent
-        </Link>
-      </div>
+      <label className="relative mt-8 block max-w-md">
+        <Search
+          size={15}
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+        />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by capability, e.g. risk-scan"
+          className="w-full rounded-md border border-border bg-card py-2.5 pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
+        />
+      </label>
 
       <div className="mt-3 flex flex-wrap gap-2">
         {CAPABILITY_NAMES.map((c) => (
@@ -72,9 +68,9 @@ function Directory() {
             key={c}
             type="button"
             onClick={() => setQuery(query === c ? "" : c)}
-            className={`rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-wide transition-colors ${
+            className={`rounded-full border px-3 py-1 text-xs transition-colors ${
               query === c
-                ? "border-primary text-primary"
+                ? "border-primary text-foreground"
                 : "border-border text-muted-foreground hover:border-primary/60"
             }`}
           >
@@ -86,17 +82,26 @@ function Directory() {
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_300px]">
         <section>
           {isLoading ? (
-            <p className="font-mono text-xs text-muted-foreground">Loading agents…</p>
-          ) : agents.length === 0 ? (
-            <p className="font-mono text-xs text-muted-foreground">
-              No agents match “{query}”.
-            </p>
-          ) : (
             <div className="grid gap-4 sm:grid-cols-2">
-              {agents.map((agent) => (
-                <AgentCard key={agent.id} agent={agent} />
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="h-[168px] animate-pulse rounded-lg border border-border bg-card" />
               ))}
             </div>
+          ) : agents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No agents match “{query}”.</p>
+          ) : (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {agents.map((agent) => (
+                  <AgentCard key={agent.id} agent={agent} />
+                ))}
+              </div>
+              {!query && allAgents.length > agents.length && (
+                <p className="mt-4 text-xs text-muted-foreground">
+                  Showing {agents.length} of {allAgents.length}. Pick a capability above to see more.
+                </p>
+              )}
+            </>
           )}
         </section>
 
