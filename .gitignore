@@ -2,5 +2,15 @@
 /contracts/cache
 /artifacts
 /contracts/out
-/subgarph/node_modules
+/contracts/.env
+/subgraph/node_modules
+/subgraph/build
+/subgraph/generated
 /veri-agent-hub-main/node_modules
+
+# Secrets — never commit these anywhere in the tree
+.env
+.env.local
+.env.*.local
+*.pem
+signing-key-*.json

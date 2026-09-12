@@ -23,8 +23,11 @@ export const config = {
   // why this exists — a confirmed World platform gap, not a Veri bug.
   worldStubVerify:    process.env.WORLD_STUB_VERIFY === "true",
 
-  // File path for nullifier persistence (JSON array on disk)
-  nullifiersFile:     process.env.NULLIFIERS_FILE || "./nullifiers.json",
+  // File path for nullifier persistence (JSON array on disk). Vercel's
+  // serverless filesystem is read-only outside /tmp, and /tmp doesn't
+  // persist across invocations — fine for this hackathon build, but note
+  // that replay protection resets between cold starts on Vercel.
+  nullifiersFile:     process.env.NULLIFIERS_FILE || (process.env.VERCEL ? "/tmp/nullifiers.json" : "./nullifiers.json"),
 };
 
 export const isConfigured = Boolean(

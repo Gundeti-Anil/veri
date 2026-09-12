@@ -298,9 +298,16 @@ app.post("/retire", (req, res) => {
 
 app.use((_req, res) => fail(res, 404, "Not found"));
 
+// Vercel imports this module as a serverless function handler (no app.listen
+// needed — its runtime owns the HTTP server). Only listen when run directly,
+// e.g. `node src/index.js` locally or on a plain Node host like Render.
+if (!process.env.VERCEL) {
 app.listen(config.port, () => {
   console.log(`[veri] backend on http://localhost:${config.port}`);
   console.log(`[veri] registrar: ${config.registrarAddress || "(not set)"}`);
   console.log(`[veri] subgraph:  ${config.subgraphUrl      || "(not set)"}`);
   console.log(`[veri] worldRpId: ${config.worldRpId        || "(not set)"}`);
 });
+}
+
+export default app;
