@@ -110,7 +110,7 @@ npm run dev             # http://localhost:8787
 ### Frontend
 ```
 cd veri-agent-hub-main
-cp .env.example .env.local   # fill in VITE_API_URL, VITE_WORLD_APP_ID
+cp .env.example .env.local   
 bun install
 bun run dev              # http://localhost:8080
 ```
