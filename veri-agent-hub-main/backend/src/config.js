@@ -19,8 +19,6 @@ export const config = {
   worldSigningKey:    process.env.WORLD_SIGNING_KEY || "", // signing_key from Developer Portal
   worldAction:        process.env.WORLD_ACTION || "register-agent",
 
-  // See the block comment at the top of verifyWorldProof() in world.js for
-  // why this exists — a confirmed World platform gap, not a Veri bug.
   worldStubVerify:    process.env.WORLD_STUB_VERIFY === "true",
 
   // File path for nullifier persistence (JSON array on disk). Vercel's

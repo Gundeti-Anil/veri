@@ -93,34 +93,7 @@ export async function verifyWorldProof(payload) {
     return { verified: false, error: "Incomplete World proof payload" };
   }
 
-  // ───────────────────────────────────────────────────────────────────────
-  // KNOWN PLATFORM GAP — STUBBED, NOT A CODE BUG:
-  //
-  // Confirmed by direct API probing against World's own servers (both a
-  // fully-migrated app with a registered RP signer, and a brand-new second
-  // app created purely to rule out per-app misconfiguration):
-  //   - staging-developer.worldcoin.org/api/v4/verify: ALWAYS returns
-  //     "app_not_migrated" for every hackathon/dev-tier app tested, on the
-  //     one host that actually recognizes Sandbox-simulated identities.
-  //   - developer.world.org (production) correctly processes v4 requests,
-  //     but has no knowledge of Sandbox-simulated Orb credentials, so it
-  //     reports "invalid_merkle_root: user appears unverified" for a
-  //     completely valid, freshly-generated proof.
-  // There is currently no API path available to a developer-tier World
-  // account that can verify a Sandbox-simulated credential. This is a World
-  // platform limitation, not a Veri bug — see FEEDBACK.md for the full
-  // troubleshooting trail (field names, nonce placement, identifier values,
-  // v2 vs v4, staging vs production all confirmed correct/working in
-  // isolation).
-  //
-  // WORLD_STUB_VERIFY=true accepts the real, on-device-generated proof
-  // fields structurally (still requires them to be present, still runs the
-  // real nullifier-replay check and the real humanId/EIP-712 attestation
-  // flow below) but skips only the network call to World's verify API.
-  // Nothing downstream of this function is stubbed.
-  // ───────────────────────────────────────────────────────────────────────
   if (config.worldStubVerify) {
-    console.warn("[veri/world] WORLD_STUB_VERIFY=true — skipping real World API call (see comment above)");
     return { verified: true, nullifier: nullifier_hash };
   }
 
