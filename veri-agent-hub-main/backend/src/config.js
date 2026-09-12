@@ -1,0 +1,32 @@
+import "dotenv/config";
+
+export const config = {
+  port:               Number(process.env.PORT || 8787),
+  rpcUrl:             process.env.RPC_URL || "",
+
+  // VeriRegistrar on Sepolia — set after Deploy.s.sol
+  registrarAddress:   process.env.VERI_REGISTRAR_ADDRESS || "",
+
+  // Subgraph Studio endpoint — set after graph deploy
+  subgraphUrl:        process.env.SUBGRAPH_URL || "",
+
+  // Attestor EIP-712 signing key (backend only — never expose to client)
+  attestorPrivateKey: process.env.ATTESTOR_PRIVATE_KEY || "",
+
+  // World ID — Selfie Check
+  worldAppId:         process.env.WORLD_APP_ID || "",
+  worldRpId:          process.env.WORLD_RP_ID  || "",     // rp_id from Developer Portal
+  worldSigningKey:    process.env.WORLD_SIGNING_KEY || "", // signing_key from Developer Portal
+  worldAction:        process.env.WORLD_ACTION || "register-agent",
+
+  // See the block comment at the top of verifyWorldProof() in world.js for
+  // why this exists — a confirmed World platform gap, not a Veri bug.
+  worldStubVerify:    process.env.WORLD_STUB_VERIFY === "true",
+
+  // File path for nullifier persistence (JSON array on disk)
+  nullifiersFile:     process.env.NULLIFIERS_FILE || "./nullifiers.json",
+};
+
+export const isConfigured = Boolean(
+  config.registrarAddress && config.attestorPrivateKey
+);

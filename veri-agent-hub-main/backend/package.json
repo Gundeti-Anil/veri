@@ -1,0 +1,20 @@
+{
+  "name": "veri-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Express backend for Veri / SubName Agents — the living directory of AI agents",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@worldcoin/idkit-server": "^1.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.4",
+    "express": "^4.21.2",
+    "graphql-request": "^7.1.2"
+  }
+}
